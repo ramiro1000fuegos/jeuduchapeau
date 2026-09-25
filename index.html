@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Time's Up — La boîte aux cartes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15121B;--bg-raised:#1E1A26;--spot:#E8A33D;--spot-dim:#7A5A26;
+  --text:#F4EEE3;--text-muted:#948C9E;--teal:#4E9E97;--danger:#C1595A;--line:#2C2733;
+  --font-display:"Fraunces",Georgia,serif;--font-ui:"Inter",system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);overflow:hidden;height:100dvh;display:flex;flex-direction:column;}
+button{font-family:inherit;cursor:pointer;}
+h1,h2{font-family:var(--font-display);margin:0 0 8px;}
+.scr{flex:1;display:none;flex-direction:column;min-height:0;padding:max(18px,env(safe-area-inset-top)) 18px max(18px,env(safe-area-inset-bottom));}
+.scr.on{display:flex;}
+.center{align-items:center;justify-content:center;text-align:center;}
+.sub{color:var(--text-muted);font-size:16px;line-height:1.5;margin:0 0 20px;}
+.btn{border:none;border-radius:12px;padding:16px 22px;font-size:16px;font-weight:600;background:var(--spot);color:#1B140A;margin:6px 0;}
+.btn:active{transform:scale(.98);}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text);}
+.btn.danger{background:var(--danger);color:#fff;}
+.btn:disabled{opacity:.4;}
+.row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px;}
+.chip{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:999px;padding:12px 18px;font-size:16px;font-weight:600;}
+.chip[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:#0D2422;}
+.scroll{flex:1;overflow-y:auto;min-height:0;}
+.card{background:var(--bg-raised);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:8px;font-family:var(--font-display);font-size:17px;text-align:left;}
+.card[aria-pressed="true"]{border-color:var(--spot);background:rgba(232,163,61,.14);}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;flex-shrink:0;}
+.eyebrow{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);}
+.iconbtn{background:var(--bg-raised);border:1px solid var(--line);color:var(--text-muted);width:36px;height:36px;border-radius:10px;}
+#g-team{font-size:13px;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;}
+#g-time{font-family:var(--font-display);font-size:44px;font-weight:700;margin:6px 0;}
+#g-theme{font-family:var(--font-display);font-weight:700;font-size:clamp(26px,7vw,36px);text-align:center;padding:20px 10px;}
+.stagemid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.actions{flex-shrink:0;display:flex;flex-direction:column;gap:10px;padding-bottom:10px;}
+.popup{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10;padding:20px;}
+.popup.on{display:flex;}
+.popup-box{background:var(--bg-raised);border:1px solid var(--line);border-radius:14px;padding:22px;max-width:340px;text-align:center;}
+.score-row{display:flex;justify-content:space-between;padding:10px 14px;background:var(--bg-raised);border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:16px;}
+</style>
+</head>
+<body>
+
+<div id="s-home" class="scr center">
+  <h1>Time's Up</h1>
+  <p class="sub">Devinez un maximum de thèmes en 3 manches.</p>
+  <button class="btn" id="b-home-new">Nouvelle partie</button>
+  <button class="btn ghost" id="b-home-resume" style="display:none">Reprendre la partie</button>
+  <button class="btn ghost" id="b-home-rules">Règles du jeu</button>
+</div>
+
+<div id="s-config" class="scr center">
+  <h2>Nombre de participants</h2>
+  <div class="row" id="config-nb"></div>
+</div>
+
+<div id="s-teams" class="scr center">
+  <h2>Formation des équipes</h2>
+  <p class="sub" id="teams-desc"></p>
+  <button class="btn" id="b-teams-next">Continuer</button>
+</div>
+
+<div id="s-duration" class="scr center">
+  <h2>Durée du tour d'équipe</h2>
+  <p class="sub">Temps maximum accordé à une équipe pour deviner, à chaque tour.</p>
+  <div class="row" id="duration-choices"></div>
+  <button class="btn" id="b-duration-next">Continuer</button>
+</div>
+
+<div id="s-blank" class="scr center">
+  <p class="sub" id="blank-label">Passez le téléphone au joueur suivant.</p>
+  <button class="btn" id="b-blank-next">Joueur suivant</button>
+</div>
+
+<div id="s-pick" class="scr">
+  <div class="topbar"><span class="eyebrow" id="pick-who"></span></div>
+  <p class="sub">Sélectionnez 2 thèmes à écarter de la partie.</p>
+  <div class="scroll" id="pick-list"></div>
+  <button class="btn" id="b-pick-done" disabled>Retirer les thèmes sélectionnés</button>
+</div>
+
+<div id="s-premanche" class="scr center">
+  <h2 id="pm-title"></h2>
+  <p class="sub" id="pm-desc"></p>
+  <div class="row" id="pm-duration"></div>
+  <button class="btn" id="b-pm-start">Commencer la manche</button>
+  <button class="btn ghost" id="b-pm-rules">Règles du jeu</button>
+</div>
+
+<div id="s-game" class="scr">
+  <div class="topbar">
+    <span class="eyebrow" id="g-manche"></span>
+    <button class="iconbtn" id="b-game-quit">✕</button>
+  </div>
+  <div class="stagemid">
+    <div id="g-team"></div>
+    <div id="g-time">--</div>
+    <div id="g-theme">Prêt ?</div>
+  </div>
+  <div class="actions" id="g-actions">
+    <button class="btn" id="b-g-next">Joueur suivant</button>
+  </div>
+</div>
+
+<div id="s-endmanche" class="scr center">
+  <h2>Fin de manche</h2>
+  <div class="scroll" id="em-scores" style="width:100%;max-width:360px"></div>
+  <button class="btn" id="b-em-next" style="margin-top:16px">Continuer</button>
+  <button class="btn ghost" id="b-em-rules">Règles du jeu</button>
+</div>
+
+<div id="s-end" class="scr center">
+  <h2>Fin de partie</h2>
+  <div class="scroll" id="end-scores" style="width:100%;max-width:360px"></div>
+  <h2 style="margin-top:18px;font-size:18px">Les 40 thèmes</h2>
+  <div class="scroll" id="end-themes" style="width:100%;max-width:360px"></div>
+  <button class="btn" id="b-end-new" style="margin-top:16px">Nouvelle partie</button>
+</div>
+
+<div class="popup" id="p-error"><div class="popup-box">
+  <p>Confirmer l'erreur ? Le tour de l'équipe se termine.</p>
+  <button class="btn danger" id="b-err-yes">Confirmer</button>
+  <button class="btn ghost" id="b-err-no">Annuler</button>
+</div></div>
+
+<div class="popup" id="p-quit"><div class="popup-box">
+  <p>Quitter la partie ? Vous pourrez la reprendre plus tard.</p>
+  <button class="btn danger" id="b-quit-yes">Quitter</button>
+  <button class="btn ghost" id="b-quit-no">Annuler</button>
+</div></div>
+
+<script>
+(function(){
+"use strict";
+var RULES_URL = "https://example.com/regles-times-up"; // TODO: URL réelle des règles
+
+// TODO: remplacer par les ~600 vrais thèmes (fichier en dur ou CSV/URL, voir spec §3.4)
+var THEME_POOL = ["Napoléon Bonaparte","Tour Eiffel","Cléopâtre","Mona Lisa","Albert Einstein","Titanic","Mozart","Everest","Pyramides de Gizeh","Jules César","Léonard de Vinci","Marie Curie","Big Ben","Christophe Colomb","Statue de la Liberté","Shakespeare","Victor Hugo","Gandhi","Charlie Chaplin","Van Gogh","Picasso","Freud","Darwin","Beethoven","Colisée","Muraille de Chine","Machu Picchu","Taj Mahal","Nelson Mandela","Einstein","Michel-Ange","Molière","Voltaire","Chopin","Elvis Presley","Marilyn Monroe","Bruce Lee","Amelia Earhart","Winston Churchill","Abraham Lincoln","Martin Luther King","Confucius","Aristote","Socrate","Platon","Archimède","Galilée","Newton","Pasteur","Curie","Zorro","Sherlock Holmes","Robin des Bois","Dracula","Frankenstein","Cendrillon","Blanche-Neige","Peter Pan","Harry Potter","Superman","Batman","Astérix","Tintin","Mickey Mouse","Pinocchio","Le Petit Prince","La Joconde","Notre-Dame de Paris","Le Louvre","Le Sacré-Cœur","Versailles","Arc de Triomphe","Mont Saint-Michel","Colisée de Rome","Big Bang","Système solaire","Galaxie","Trou noir","Pluton","Jupiter","Sahara","Amazonie","Antarctique","Gulf Stream","Volcan","Tsunami","Séisme","Aurore boréale","Éclipse","Marathon","Jeux Olympiques","Coupe du Monde","Tour de France","Wimbledon"];
+
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=(Math.random()*(i+1))|0;var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function $(id){return document.getElementById(id);}
+function show(id){document.querySelectorAll(".scr").forEach(function(s){s.classList.remove("on");});$(id).classList.add("on");}
+
+// N -> team sizes (précalculé en dur, priorité: effectifs égaux > équipes de 3 > <=4 équipes)
+var TEAM_CONFIGS = {4:[2,2],5:[2,3],6:[3,3],7:[3,2,2],8:[2,2,2,2],9:[3,3,3],10:[2,2,2,2,2],11:[3,3,3,2],12:[3,3,3,3]};
+
+var G = null; // état de la partie
+var SAVE_KEY = "tu52_game_v1";
+
+function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(G)); }catch(e){} }
+function loadSaved(){ try{ var s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
+function clearSaved(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+
+function beep(){
+  try{
+    var ctx=new (window.AudioContext||window.webkitAudioContext)();
+    var o=ctx.createOscillator(),g=ctx.createGain();
+    o.frequency.value=880; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(.2,ctx.currentTime);
+    o.start(); o.stop(ctx.currentTime+.4);
+  }catch(e){}
+}
+
+// ---------- Accueil ----------
+var saved = loadSaved();
+if (saved && saved.statut === "en_cours"){ $("b-home-resume").style.display="block"; }
+$("b-home-resume").addEventListener("click", function(){ G = saved; resumeGame(); });
+$("b-home-rules").addEventListener("click", function(){ window.open(RULES_URL,"_blank"); });
+$("b-home-new").addEventListener("click", function(){ startConfig(); });
+
+// ---------- Config participants ----------
+function startConfig(){
+  var wrap = $("config-nb"); wrap.innerHTML="";
+  for (var n=4;n<=12;n++){
+    (function(n){
+      var b=document.createElement("button"); b.className="chip"; b.textContent=n;
+      b.addEventListener("click", function(){ onParticipants(n); });
+      wrap.appendChild(b);
+    })(n);
+  }
+  show("s-config");
+}
+
+function onParticipants(n){
+  var sizes = TEAM_CONFIGS[n];
+  G = { statut:"en_cours", participants:n, nombre_equipes:sizes.length,
+        teams: sizes.map(function(sz,i){return {numero:i+1, taille:sz, score_cumule:0, scores_manches:[0,0,0]};}),
+        duree_decompte:45, manche_courante:1, equipe_courante:0,
+        cartes_en_jeu:[], indisponibilites:{}, // {equipe: {manche: Set(id)}}
+        _setup:{playerIdx:0, totalPlayers:n, perPlayer:0, deck:[], ptr:0, discarded:[]}
+      };
+  $("teams-desc").textContent = sizes.length+" équipes : "+sizes.map(function(s){return s+" pers.";}).join(", ")+".";
+  show("s-teams");
+}
+$("b-teams-next").addEventListener("click", function(){
+  var pool = shuffle(THEME_POOL.map(function(t,i){return {id:i,txt:t};}));
+  var need = 40 + 2*G.participants;
+  var drawn = pool.slice(0, Math.min(need, pool.length));
+  G.cartes_en_jeu = drawn; // sera réduit à 40 après setup
+  var dchoices = $("duration-choices"); dchoices.innerHTML="";
+  [30,45,60].forEach(function(d){
+    var b=document.createElement("button"); b.className="chip"; b.textContent=d+"s";
+    if(d===45) b.setAttribute("aria-pressed","true");
+    b.addEventListener("click", function(){
+      dchoices.querySelectorAll(".chip").forEach(function(c){c.removeAttribute("aria-pressed");});
+      b.setAttribute("aria-pressed","true"); G.duree_decompte=d;
+    });
+    dchoices.appendChild(b);
+  });
+  show("s-duration");
+});
+$("b-duration-next").addEventListener("click", function(){
+  var poolSize = G.cartes_en_jeu.length, n = G.participants;
+  G._setup.perPlayer = Math.max(10, Math.ceil(poolSize/n));
+  G._setup.deck = shuffle(G.cartes_en_jeu.slice());
+  G._setup.ptr = 0;
+  nextSetupPlayer();
+});
+
+// ---------- Setup joueurs ----------
+function nextSetupPlayer(){
+  var s = G._setup;
+  if (s.playerIdx >= s.totalPlayers){ finishSetup(); return; }
+  $("blank-label").textContent = "Passez le téléphone au joueur "+(s.playerIdx+1)+".";
+  show("s-blank");
+}
+$("b-blank-next").addEventListener("click", function(){
+  var s = G._setup;
+  if (s.ptr >= s.deck.length){
+    var survivors = G.cartes_en_jeu.filter(function(c){ return s.discarded.indexOf(c.id)===-1; });
+    s.deck = shuffle(survivors); s.ptr = 0;
+  }
+  var slice = s.deck.slice(s.ptr, s.ptr + s.perPlayer);
+  s.ptr += slice.length;
+  s._current = slice; s._picked = [];
+  $("pick-who").textContent = "Joueur "+(s.playerIdx+1)+" / "+s.totalPlayers;
+  var list = $("pick-list"); list.innerHTML="";
+  slice.forEach(function(c){
+    var d=document.createElement("div"); d.className="card"; d.textContent=c.txt;
+    d.addEventListener("click", function(){
+      var idx=s._picked.indexOf(c.id);
+      if(idx>-1){ s._picked.splice(idx,1); d.removeAttribute("aria-pressed"); }
+      else if(s._picked.length<2){ s._picked.push(c.id); d.setAttribute("aria-pressed","true"); }
+      $("b-pick-done").disabled = s._picked.length!==2;
+    });
+    list.appendChild(d);
+  });
+  $("b-pick-done").disabled = true;
+  show("s-pick");
+});
+$("b-pick-done").addEventListener("click", function(){
+  var s = G._setup;
+  s.discarded = s.discarded.concat(s._picked);
+  s.playerIdx++;
+  nextSetupPlayer();
+});
+
+function finishSetup(){
+  var s = G._setup;
+  var kept = G.cartes_en_jeu.filter(function(c){ return s.discarded.indexOf(c.id)===-1; });
+  G.cartes_en_jeu = shuffle(kept).slice(0,40);
+  delete G._setup;
+  save();
+  startManche();
+}
+
+// ---------- Manches ----------
+var MANCHE_DESC = {
+  1: "Décrivez librement le thème, sans le nommer.",
+  2: "Un seul mot autorisé pour faire deviner le thème.",
+  3: "Mimez le thème, sans un mot."
+};
+function startManche(){
+  G.equipe_courante = G.manche_courante===1 ? 0 : G._lastTeam || 0;
+  G.indisponibilites[G.manche_courante] = {}; // reset complet à chaque manche
+  errCount = {};
+  G._deck = shuffle(G.cartes_en_jeu.slice());
+  G._deckPos = 0;
+  $("pm-title").textContent = "Manche "+G.manche_courante+" / 3";
+  $("pm-desc").textContent = MANCHE_DESC[G.manche_courante];
+  var dwrap = $("pm-duration"); dwrap.innerHTML="";
+  [30,45,60].forEach(function(d){
+    var b=document.createElement("button"); b.className="chip"; b.textContent=d+"s";
+    if(d===G.duree_decompte) b.setAttribute("aria-pressed","true");
+    b.addEventListener("click", function(){
+      dwrap.querySelectorAll(".chip").forEach(function(c){c.removeAttribute("aria-pressed");});
+      b.setAttribute("aria-pressed","true"); G.duree_decompte=d;
+    });
+    dwrap.appendChild(b);
+  });
+  save();
+  show("s-premanche");
+}
+$("b-pm-rules").addEventListener("click", function(){ window.open(RULES_URL,"_blank"); });
+$("b-pm-start").addEventListener("click", function(){ setupTurn(); });
+
+// ---------- Tour d'équipe ----------
+var timerId=null, timeLeft=0, errCount={};
+function teamIndispo(){
+  var m = G.indisponibilites[G.manche_courante];
+  var eq = G.equipe_courante;
+  if(!m[eq]) m[eq]=[];
+  return m[eq];
+}
+function nextAvailableCard(){
+  while (G._deckPos < G._deck.length){
+    var c = G._deck[G._deckPos];
+    if (teamIndispo().indexOf(c.id)===-1) return c;
+    G._deckPos++;
+  }
+  return null;
+}
+function setupTurn(){
+  $("g-manche").textContent = "Manche "+G.manche_courante;
+  $("g-team").textContent = "Équipe "+(G.equipe_courante+1);
+  $("g-time").textContent = "--";
+  $("g-theme").textContent = "Prêt ?";
+  $("g-actions").innerHTML = '<button class="btn" id="b-g-next">Joueur suivant</button>';
+  $("b-g-next").addEventListener("click", startTurn);
+  show("s-game");
+}
+function startTurn(){
+  timeLeft = G.duree_decompte;
+  renderActions();
+  if (showNextTheme()) runTimer();
+}
+function runTimer(){
+  clearInterval(timerId);
+  $("g-time").textContent = timeLeft;
+  timerId = setInterval(function(){
+    timeLeft--;
+    $("g-time").textContent = timeLeft;
+    if (timeLeft<=0){ clearInterval(timerId); beep(); endTurn("temps"); }
+  },1000);
+}
+function pauseTimer(){ clearInterval(timerId); }
+function resumeTimer(){ runTimer(); }
+
+function showNextTheme(){
+  var c = nextAvailableCard();
+  if (!c){ endTurn("epuise"); return false; }
+  G._current = c;
+  $("g-theme").textContent = c.txt;
+  return true;
+}
+function renderActions(){
+  var html = '<button class="btn" id="b-guess">Thème deviné</button>';
+  if (G.manche_courante>=1){ // règle actuelle : ignorer/erreur dispo en manches 2 et 3 uniquement
+  }
+  if (G.manche_courante>=2){
+    html += '<button class="btn ghost" id="b-skip">Ignorer le thème</button>';
+    html += '<button class="btn ghost" id="b-error">Erreur</button>';
+  }
+  $("g-actions").innerHTML = html;
+  $("b-guess").addEventListener("click", function(){
+    var team = G.teams[G.equipe_courante];
+    team.scores_manches[G.manche_courante-1]++;
+    team.score_cumule++;
+    teamIndispo(); // s'assure de l'entrée
+    G.indisponibilites[G.manche_courante][-1] = G.indisponibilites[G.manche_courante][-1]||[]; // marker global
+    G.teams.forEach(function(t,i){ var m=G.indisponibilites[G.manche_courante]; if(!m[i]) m[i]=[]; m[i].push(G._current.id); });
+    G._deckPos++;
+    showNextTheme();
+  });
+  var skipBtn = $("b-skip");
+  if (skipBtn) skipBtn.addEventListener("click", function(){
+    teamIndispo().push(G._current.id);
+    showNextTheme();
+  });
+  var errBtn = $("b-error");
+  if (errBtn) errBtn.addEventListener("click", function(){
+    pauseTimer(); $("p-error").classList.add("on");
+  });
+}
+$("b-err-yes").addEventListener("click", function(){
+  $("p-error").classList.remove("on");
+  var key = G.equipe_courante+"_"+G._current.id;
+  errCount[key] = (errCount[key]||0) + 1;
+  if (errCount[key] >= 2){ teamIndispo().push(G._current.id); } // 2 erreurs sur la même carte pour cette équipe -> carte écartée pour elle
+  endTurn("erreur");
+});
+$("b-err-no").addEventListener("click", function(){ $("p-error").classList.remove("on"); resumeTimer(); });
+
+function endTurn(reason){
+  clearInterval(timerId);
+  if (reason==="erreur" || reason==="temps"){
+    // le thème en cours est proposé à l'équipe suivante (reste disponible, pas ajouté aux indispo)
+  }
+  save();
+  var doneAll = G.teams.every(function(t,i){
+    var m = G.indisponibilites[G.manche_courante][i]||[];
+    return G.cartes_en_jeu.every(function(c){ return m.indexOf(c.id)>-1; });
+  });
+  if (doneAll){ endManche(); return; }
+  G._lastTeam = G.equipe_courante;
+  var next = G.equipe_courante;
+  for (var i=0;i<G.teams.length;i++){
+    next = (next+1) % G.teams.length;
+    var m = G.indisponibilites[G.manche_courante][next]||[];
+    var hasCard = G.cartes_en_jeu.some(function(c){ return m.indexOf(c.id)===-1; });
+    if (hasCard) break;
+  }
+  G.equipe_courante = next;
+  setupTurn();
+}
+
+function endManche(){
+  var wrap = $("em-scores"); wrap.innerHTML="";
+  G.teams.forEach(function(t){
+    var d=document.createElement("div"); d.className="score-row";
+    d.innerHTML = "<span>Équipe "+t.numero+"</span><span>manche: "+t.scores_manches[G.manche_courante-1]+" · total: "+t.score_cumule+"</span>";
+    wrap.appendChild(d);
+  });
+  save();
+  show("s-endmanche");
+}
+$("b-em-rules").addEventListener("click", function(){ window.open(RULES_URL,"_blank"); });
+$("b-em-next").addEventListener("click", function(){
+  if (G.manche_courante < 3){ G.manche_courante++; startManche(); }
+  else { endGame(); }
+});
+
+function endGame(){
+  G.statut = "terminee";
+  var wrap = $("end-scores"); wrap.innerHTML="";
+  G.teams.slice().sort(function(a,b){return b.score_cumule-a.score_cumule;}).forEach(function(t){
+    var d=document.createElement("div"); d.className="score-row";
+    d.innerHTML = "<span>Équipe "+t.numero+"</span><span>"+t.score_cumule+" pts</span>";
+    wrap.appendChild(d);
+  });
+  var tw = $("end-themes"); tw.innerHTML="";
+  G.cartes_en_jeu.forEach(function(c){
+    var d=document.createElement("div"); d.className="card"; d.style.fontSize="14px"; d.textContent=c.txt;
+    tw.appendChild(d);
+  });
+  clearSaved();
+  show("s-end");
+}
+$("b-end-new").addEventListener("click", function(){ show("s-home"); location.reload(); });
+
+// ---------- Quitter / reprendre ----------
+$("b-game-quit").addEventListener("click", function(){ pauseTimer(); $("p-quit").classList.add("on"); });
+$("b-quit-no").addEventListener("click", function(){ $("p-quit").classList.remove("on"); resumeTimer(); });
+$("b-quit-yes").addEventListener("click", function(){
+  $("p-quit").classList.remove("on");
+  G._pausedTimeLeft = timeLeft; save();
+  show("s-home"); location.reload();
+});
+
+function resumeGame(){
+  if (G._setup){ nextSetupPlayer(); return; }
+  if (G.statut==="terminee"){ show("s-home"); return; }
+  G.equipe_courante = G.equipe_courante||0;
+  $("g-manche").textContent = "Manche "+G.manche_courante;
+  $("g-team").textContent = "Équipe "+(G.equipe_courante+1);
+  timeLeft = G._pausedTimeLeft || G.duree_decompte;
+  G._deck = shuffle(G.cartes_en_jeu.slice());
+  G._deckPos = 0;
+  renderActions();
+  showNextTheme();
+  runTimer();
+  show("s-game");
+}
+
+show("s-home");
+})();
+</script>
+</body>
+</html>
