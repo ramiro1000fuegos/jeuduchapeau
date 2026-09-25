@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Le jeu du chapeau</title>
+<title>Jeu du chapeau</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -50,7 +50,7 @@ h1,h2{font-family:var(--font-display);margin:0 0 8px;}
 <body>
 
 <div id="s-home" class="scr center">
-  <h1>Jeu du chapeau</h1>
+  <h1>Jeu du Chapeau</h1>
   <p class="sub">Devinez un maximum de thèmes en 3 manches.</p>
   <button class="btn" id="b-home-new">Nouvelle partie</button>
   <button class="btn ghost" id="b-home-resume" style="display:none">Reprendre la partie</button>
@@ -195,19 +195,9 @@ function onParticipants(n){
 }
 $("b-teams-next").addEventListener("click", function(){
   var pool = shuffle(THEME_POOL.map(function(t,i){return {id:i,txt:t};}));
-  var need = 10 + 2*G.participants; //TEST
+  var need = 40 + 2*G.participants;
   var drawn = pool.slice(0, Math.min(need, pool.length));
   G.cartes_en_jeu = drawn; // sera réduit à 40 après setup
-  var dchoices = $("duration-choices"); dchoices.innerHTML="";
-  [10,30,45,60].forEach(function(d){
-    var b=document.createElement("button"); b.className="chip"; b.textContent=d+"s";
-    if(d===30) b.setAttribute("aria-pressed","true");
-    b.addEventListener("click", function(){
-      dchoices.querySelectorAll(".chip").forEach(function(c){c.removeAttribute("aria-pressed");});
-      b.setAttribute("aria-pressed","true"); G.duree_decompte=d;
-    });
-    dchoices.appendChild(b);
-  });
   var poolSize = G.cartes_en_jeu.length, n = G.participants;
   G._setup.perPlayer = Math.max(10, Math.ceil(poolSize/n));
   G._setup.deck = shuffle(G.cartes_en_jeu.slice());
@@ -277,7 +267,7 @@ function startManche(){
   $("pm-title").textContent = "Manche "+G.manche_courante+" / 3";
   $("pm-desc").textContent = MANCHE_DESC[G.manche_courante];
   var dwrap = $("pm-duration"); dwrap.innerHTML="";
-  [30,45,60].forEach(function(d){
+  [10,30,45,60].forEach(function(d){
     var b=document.createElement("button"); b.className="chip"; b.textContent=d+"s";
     if(d===G.duree_decompte) b.setAttribute("aria-pressed","true");
     b.addEventListener("click", function(){
