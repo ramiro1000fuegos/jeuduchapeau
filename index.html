@@ -195,7 +195,7 @@ function onParticipants(n){
 }
 $("b-teams-next").addEventListener("click", function(){
   var pool = shuffle(THEME_POOL.map(function(t,i){return {id:i,txt:t};}));
-  var need = 40 + 2*G.participants;
+  var need = 10 + 2*G.participants; //TEST
   var drawn = pool.slice(0, Math.min(need, pool.length));
   G.cartes_en_jeu = drawn; // sera réduit à 40 après setup
   var dchoices = $("duration-choices"); dchoices.innerHTML="";
