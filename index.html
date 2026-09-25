@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Time's Up — La boîte aux cartes</title>
+<title>Le jeu du chapeau</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -50,7 +50,7 @@ h1,h2{font-family:var(--font-display);margin:0 0 8px;}
 <body>
 
 <div id="s-home" class="scr center">
-  <h1>Time's Up</h1>
+  <h1>Jeu du chapeau</h1>
   <p class="sub">Devinez un maximum de thèmes en 3 manches.</p>
   <button class="btn" id="b-home-new">Nouvelle partie</button>
   <button class="btn ghost" id="b-home-resume" style="display:none">Reprendre la partie</button>
@@ -66,13 +66,6 @@ h1,h2{font-family:var(--font-display);margin:0 0 8px;}
   <h2>Formation des équipes</h2>
   <p class="sub" id="teams-desc"></p>
   <button class="btn" id="b-teams-next">Continuer</button>
-</div>
-
-<div id="s-duration" class="scr center">
-  <h2>Durée du tour d'équipe</h2>
-  <p class="sub">Temps maximum accordé à une équipe pour deviner, à chaque tour.</p>
-  <div class="row" id="duration-choices"></div>
-  <button class="btn" id="b-duration-next">Continuer</button>
 </div>
 
 <div id="s-blank" class="scr center">
@@ -193,7 +186,7 @@ function onParticipants(n){
   var sizes = TEAM_CONFIGS[n];
   G = { statut:"en_cours", participants:n, nombre_equipes:sizes.length,
         teams: sizes.map(function(sz,i){return {numero:i+1, taille:sz, score_cumule:0, scores_manches:[0,0,0]};}),
-        duree_decompte:45, manche_courante:1, equipe_courante:0,
+        duree_decompte:30, manche_courante:1, equipe_courante:0,
         cartes_en_jeu:[], indisponibilites:{}, // {equipe: {manche: Set(id)}}
         _setup:{playerIdx:0, totalPlayers:n, perPlayer:0, deck:[], ptr:0, discarded:[]}
       };
@@ -206,18 +199,15 @@ $("b-teams-next").addEventListener("click", function(){
   var drawn = pool.slice(0, Math.min(need, pool.length));
   G.cartes_en_jeu = drawn; // sera réduit à 40 après setup
   var dchoices = $("duration-choices"); dchoices.innerHTML="";
-  [30,45,60].forEach(function(d){
+  [10,30,45,60].forEach(function(d){
     var b=document.createElement("button"); b.className="chip"; b.textContent=d+"s";
-    if(d===45) b.setAttribute("aria-pressed","true");
+    if(d===30) b.setAttribute("aria-pressed","true");
     b.addEventListener("click", function(){
       dchoices.querySelectorAll(".chip").forEach(function(c){c.removeAttribute("aria-pressed");});
       b.setAttribute("aria-pressed","true"); G.duree_decompte=d;
     });
     dchoices.appendChild(b);
   });
-  show("s-duration");
-});
-$("b-duration-next").addEventListener("click", function(){
   var poolSize = G.cartes_en_jeu.length, n = G.participants;
   G._setup.perPlayer = Math.max(10, Math.ceil(poolSize/n));
   G._setup.deck = shuffle(G.cartes_en_jeu.slice());
