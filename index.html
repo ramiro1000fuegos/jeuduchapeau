@@ -50,7 +50,7 @@ h1,h2{font-family:var(--font-display);margin:0 0 8px;}
 <body>
 
 <div id="s-home" class="scr center">
-  <h1>Jeu du Chapeau</h1>
+  <h1>Jeu du chapeau</h1>
   <p class="sub">Devinez un maximum de thèmes en 3 manches.</p>
   <button class="btn" id="b-home-new">Nouvelle partie</button>
   <button class="btn ghost" id="b-home-resume" style="display:none">Reprendre la partie</button>
@@ -94,8 +94,9 @@ h1,h2{font-family:var(--font-display);margin:0 0 8px;}
     <button class="iconbtn" id="b-game-quit">✕</button>
   </div>
   <div class="stagemid">
-    <div id="g-team"></div>
+    <div id="g-team" style="padding:8px 16px;border-radius:10px;font-weight:700;"></div>
     <div id="g-time">--</div>
+    <div id="g-progress" class="sub" style="margin:0 0 4px"></div>
     <div id="g-theme">Prêt ?</div>
   </div>
   <div class="actions" id="g-actions">
@@ -103,23 +104,29 @@ h1,h2{font-family:var(--font-display);margin:0 0 8px;}
   </div>
 </div>
 
+<div id="s-teamchoice" class="scr center">
+  <h2>Formation des équipes</h2>
+  <p class="sub">Deux configurations sont possibles, choisissez-en une.</p>
+  <div class="row" id="teamchoice-opts" style="flex-direction:column"></div>
+</div>
+
 <div id="s-endmanche" class="scr center">
   <h2>Fin de manche</h2>
   <div class="scroll" id="em-scores" style="width:100%;max-width:360px"></div>
-  <button class="btn" id="b-em-next" style="margin-top:16px">Continuer</button>
+  <button class="btn" id="b-em-next" style="margin-top:16px">OK</button>
   <button class="btn ghost" id="b-em-rules">Règles du jeu</button>
 </div>
 
 <div id="s-end" class="scr center">
   <h2>Fin de partie</h2>
   <div class="scroll" id="end-scores" style="width:100%;max-width:360px"></div>
-  <h2 style="margin-top:18px;font-size:18px">Les 40 thèmes</h2>
+  <h2 style="margin-top:18px;font-size:18px" id="end-themes-title">Les thèmes</h2>
   <div class="scroll" id="end-themes" style="width:100%;max-width:360px"></div>
-  <button class="btn" id="b-end-new" style="margin-top:16px">Nouvelle partie</button>
+  <button class="btn" id="b-end-new" style="margin-top:16px">OK</button>
 </div>
 
 <div class="popup" id="p-error"><div class="popup-box">
-  <p>Confirmer l'erreur ? Le tour de l'équipe se termine.</p>
+  <p>Confirmer la faute ? Le tour de l'équipe se termine.</p>
   <button class="btn danger" id="b-err-yes">Confirmer</button>
   <button class="btn ghost" id="b-err-no">Annuler</button>
 </div></div>
@@ -162,14 +169,45 @@ function beep(){
   }catch(e){}
 }
 
+// ---------- Équipes : noms & couleurs (MVP, attribution fixe — voir annexe pour la mécanique cible) ----------
+var TEAM_NAMES = [
+  {name:"Kiwis", emoji:"🥝", color:"#FFD166"},
+  {name:"Pandas", emoji:"🐼", color:"#4FD9E8"},
+  {name:"Éclairs", emoji:"⚡", color:"#B79CFF"},
+  {name:"Dragons", emoji:"🐲", color:"#7FE8C0"},
+  {name:"Cactus", emoji:"🌵", color:"#FF6F59"}
+];
+// TODO (post-MVP) : attribution dynamique par catégorie avec élimination (annexe) — non implémentée, ordre fixe ci-dessus.
+
+// N -> options de répartition en équipes (2 options seulement pour 6 et 10)
+var TEAM_CONFIGS = {
+  4:[[2,2]], 5:[[2,3]], 6:[[3,3],[2,2,2]], 7:[[2,2,3]], 8:[[2,2,2,2]],
+  9:[[3,3,3]], 10:[[2,2,2,2,2],[2,2,3,3]], 11:[[2,3,3,3]], 12:[[3,3,3,3]]
+};
+
+var G = null; // état de la partie
+// Persistance : code conservé (save/loadSaved/clearSaved) mais volontairement non appelé en MVP.
+var SAVE_KEY = "tu52_game_v1";
+function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(G)); }catch(e){} }
+function loadSaved(){ try{ var s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
+function clearSaved(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+
+function beep(){
+  try{
+    var ctx=new (window.AudioContext||window.webkitAudioContext)();
+    var o=ctx.createOscillator(),g=ctx.createGain();
+    o.frequency.value=880; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(.2,ctx.currentTime);
+    o.start(); o.stop(ctx.currentTime+.4);
+  }catch(e){}
+}
+
 // ---------- Accueil ----------
-var saved = loadSaved();
-if (saved && saved.statut === "en_cours"){ $("b-home-resume").style.display="block"; }
-$("b-home-resume").addEventListener("click", function(){ G = saved; resumeGame(); });
+// Le bouton "Reprendre la partie" reste caché en MVP (persistance non activée).
 $("b-home-rules").addEventListener("click", function(){ window.open(RULES_URL,"_blank"); });
 $("b-home-new").addEventListener("click", function(){ startConfig(); });
 
-// ---------- Config participants ----------
+// ---------- Config participants & équipes ----------
 function startConfig(){
   var wrap = $("config-nb"); wrap.innerHTML="";
   for (var n=4;n<=12;n++){
@@ -181,93 +219,54 @@ function startConfig(){
   }
   show("s-config");
 }
-
 function onParticipants(n){
-  var sizes = TEAM_CONFIGS[n];
-  G = { statut:"en_cours", participants:n, nombre_equipes:sizes.length,
-        teams: sizes.map(function(sz,i){return {numero:i+1, taille:sz, score_cumule:0, scores_manches:[0,0,0]};}),
-        duree_decompte:30, manche_courante:1, equipe_courante:0,
-        cartes_en_jeu:[], indisponibilites:{}, // {equipe: {manche: Set(id)}}
-        _setup:{playerIdx:0, totalPlayers:n, perPlayer:0, deck:[], ptr:0, discarded:[]}
-      };
+  G = { participants:n, manche_courante:1, equipe_courante:0, duree_decompte:30 };
+  var opts = TEAM_CONFIGS[n];
+  if (opts.length > 1){
+    var wrap = $("teamchoice-opts"); wrap.innerHTML="";
+    opts.forEach(function(sizes){
+      var b=document.createElement("button"); b.className="chip";
+      b.textContent = sizes.length+" équipes ("+sizes.join("+")+")";
+      b.addEventListener("click", function(){ chooseTeams(sizes); });
+      wrap.appendChild(b);
+    });
+    show("s-teamchoice");
+  } else {
+    chooseTeams(opts[0]);
+  }
+}
+function chooseTeams(sizes){
+  G.teams = sizes.map(function(sz,i){
+    var n = TEAM_NAMES[i];
+    return {numero:i+1, taille:sz, nom:n.name, emoji:n.emoji, couleur:n.color, score_cumule:0, scores_manches:[0,0,0]};
+  });
   $("teams-desc").textContent = sizes.length+" équipes : "+sizes.map(function(s){return s+" pers.";}).join(", ")+".";
   show("s-teams");
 }
 $("b-teams-next").addEventListener("click", function(){
+  // MVP = mode D : tirage direct de 40 thèmes, sans aperçu ni filtrage (modes A/B/C/E gardés plus bas mais non appelés)
   var pool = shuffle(THEME_POOL.map(function(t,i){return {id:i,txt:t};}));
-  var need = 4 + 2*G.participants;
-  var drawn = pool.slice(0, Math.min(need, pool.length));
-  G.cartes_en_jeu = drawn; // sera réduit à 40 après setup
-  var poolSize = G.cartes_en_jeu.length, n = G.participants;
-  G._setup.perPlayer = Math.max(10, Math.ceil(poolSize/n));
-  G._setup.deck = shuffle(G.cartes_en_jeu.slice());
-  G._setup.ptr = 0;
-  nextSetupPlayer();
-});
-
-// ---------- Setup joueurs ----------
-function nextSetupPlayer(){
-  var s = G._setup;
-  if (s.playerIdx >= s.totalPlayers){ finishSetup(); return; }
-  $("blank-label").textContent = "Passez le téléphone au joueur "+(s.playerIdx+1)+".";
-  show("s-blank");
-}
-$("b-blank-next").addEventListener("click", function(){
-  var s = G._setup;
-  if (s.ptr >= s.deck.length){
-    var survivors = G.cartes_en_jeu.filter(function(c){ return s.discarded.indexOf(c.id)===-1; });
-    s.deck = shuffle(survivors); s.ptr = 0;
-  }
-  var slice = s.deck.slice(s.ptr, s.ptr + s.perPlayer);
-  s.ptr += slice.length;
-  s._current = slice; s._picked = [];
-  $("pick-who").textContent = "Joueur "+(s.playerIdx+1)+" / "+s.totalPlayers;
-  var list = $("pick-list"); list.innerHTML="";
-  slice.forEach(function(c){
-    var d=document.createElement("div"); d.className="card"; d.textContent=c.txt;
-    d.addEventListener("click", function(){
-      var idx=s._picked.indexOf(c.id);
-      if(idx>-1){ s._picked.splice(idx,1); d.removeAttribute("aria-pressed"); }
-      else if(s._picked.length<2){ s._picked.push(c.id); d.setAttribute("aria-pressed","true"); }
-      $("b-pick-done").disabled = s._picked.length!==2;
-    });
-    list.appendChild(d);
-  });
-  $("b-pick-done").disabled = true;
-  show("s-pick");
-});
-$("b-pick-done").addEventListener("click", function(){
-  var s = G._setup;
-  s.discarded = s.discarded.concat(s._picked);
-  s.playerIdx++;
-  nextSetupPlayer();
-});
-
-function finishSetup(){
-  var s = G._setup;
-  var kept = G.cartes_en_jeu.filter(function(c){ return s.discarded.indexOf(c.id)===-1; });
-  G.cartes_en_jeu = shuffle(kept).slice(0,40);
-  delete G._setup;
-  save();
+  G.cartes_en_jeu = pool.slice(0, Math.min(40, pool.length)).map(function(c){ return {id:c.id, txt:c.txt, statut:"disponible"}; });
   startManche();
-}
+});
+
+// ---------- Setup joueurs (modes A/B/C/E — code conservé, non appelé en MVP qui utilise le mode D) ----------
+function nextSetupPlayer(){ /* non utilisé en MVP */ }
+function drawPlayerSlice(count){ return []; /* non utilisé en MVP */ }
 
 // ---------- Manches ----------
 var MANCHE_DESC = {
-  1: "Décrivez librement le thème, sans le nommer.",
-  2: "Un seul mot autorisé pour faire deviner le thème.",
-  3: "Mimez le thème, sans un mot."
+  1: "Décrivez librement le thème (interdit : dire plus d'un mot, épeler).",
+  2: "Un seul mot autorisé (interdits : gestes, bruitages).",
+  3: "Mimez le thème, sans parler ni fredonner."
 };
 function startManche(){
-  G.equipe_courante = G.manche_courante===1 ? 0 : G._lastTeam || 0;
-  G.indisponibilites[G.manche_courante] = {}; // reset complet à chaque manche
-  errCount = {};
-  G._deck = shuffle(G.cartes_en_jeu.slice());
-  G._deckPos = 0;
+  G.equipe_courante = 0;
+  G.cartes_en_jeu.forEach(function(c){ c.statut = "disponible"; }); // en début de manche, tous les thèmes redeviennent disponibles
   $("pm-title").textContent = "Manche "+G.manche_courante+" / 3";
   $("pm-desc").textContent = MANCHE_DESC[G.manche_courante];
   var dwrap = $("pm-duration"); dwrap.innerHTML="";
-  [10,30,45,60].forEach(function(d){
+  [30,45,60].forEach(function(d){
     var b=document.createElement("button"); b.className="chip"; b.textContent=d+"s";
     if(d===G.duree_decompte) b.setAttribute("aria-pressed","true");
     b.addEventListener("click", function(){
@@ -276,32 +275,22 @@ function startManche(){
     });
     dwrap.appendChild(b);
   });
-  save();
   show("s-premanche");
 }
 $("b-pm-rules").addEventListener("click", function(){ window.open(RULES_URL,"_blank"); });
 $("b-pm-start").addEventListener("click", function(){ setupTurn(); });
 
 // ---------- Tour d'équipe ----------
-var timerId=null, timeLeft=0, errCount={};
-function teamIndispo(){
-  var m = G.indisponibilites[G.manche_courante];
-  var eq = G.equipe_courante;
-  if(!m[eq]) m[eq]=[];
-  return m[eq];
-}
-function nextAvailableCard(){
-  while (G._deckPos < G._deck.length){
-    var c = G._deck[G._deckPos];
-    if (teamIndispo().indexOf(c.id)===-1) return c;
-    G._deckPos++;
-  }
-  return null;
-}
+var timerId=null, timeLeft=0;
+
 function setupTurn(){
+  var team = G.teams[G.equipe_courante];
   $("g-manche").textContent = "Manche "+G.manche_courante;
-  $("g-team").textContent = "Équipe "+(G.equipe_courante+1);
+  $("g-team").textContent = team.emoji+" "+team.nom;
+  $("g-team").style.background = team.couleur; $("g-team").style.color = "#000";
+  $("g-time").style.color = team.couleur;
   $("g-time").textContent = "--";
+  $("g-progress").textContent = "";
   $("g-theme").textContent = "Prêt ?";
   $("g-actions").innerHTML = '<button class="btn" id="b-g-next">Joueur suivant</button>';
   $("b-g-next").addEventListener("click", startTurn);
@@ -309,6 +298,10 @@ function setupTurn(){
 }
 function startTurn(){
   timeLeft = G.duree_decompte;
+  // les thèmes "sauté" redeviennent disponibles (seuls les "deviné" restent indisponibles), puis on tire l'ordre de ce tour
+  G.cartes_en_jeu.forEach(function(c){ if(c.statut==="saute") c.statut="disponible"; });
+  G._turnDeck = shuffle(G.cartes_en_jeu.filter(function(c){ return c.statut==="disponible"; }));
+  G._turnPos = 0; G._turnShown = 0;
   renderActions();
   if (showNextTheme()) runTimer();
 }
@@ -318,77 +311,54 @@ function runTimer(){
   timerId = setInterval(function(){
     timeLeft--;
     $("g-time").textContent = timeLeft;
-    if (timeLeft<=0){ clearInterval(timerId); beep(); endTurn("temps"); }
+    if (timeLeft<=0){ clearInterval(timerId); beep(); endTurn(); }
   },1000);
 }
 function pauseTimer(){ clearInterval(timerId); }
 function resumeTimer(){ runTimer(); }
 
 function showNextTheme(){
-  var c = nextAvailableCard();
-  if (!c){ endTurn("epuise"); return false; }
-  G._current = c;
-  $("g-theme").textContent = c.txt;
+  if (G._turnPos >= G._turnDeck.length){ endTurn(); return false; }
+  G._current = G._turnDeck[G._turnPos];
+  G._turnPos++; G._turnShown++;
+  $("g-progress").textContent = "Thème "+G._turnShown+" / "+G._turnDeck.length;
+  $("g-theme").textContent = G._current.txt;
   return true;
 }
 function renderActions(){
   var html = '<button class="btn" id="b-guess">Thème deviné</button>';
-  if (G.manche_courante>=1){ // règle actuelle : ignorer/erreur dispo en manches 2 et 3 uniquement
+  if (G.manche_courante >= 2){
+    html += '<button class="btn ghost" id="b-skip">Erreur / Passer thème</button>';
   }
-  if (G.manche_courante>=2){
-    html += '<button class="btn ghost" id="b-skip">Ignorer le thème</button>';
-    html += '<button class="btn ghost" id="b-error">Erreur</button>';
-  }
+  html += '<button class="btn danger" id="b-faute">Faute</button>';
   $("g-actions").innerHTML = html;
   $("b-guess").addEventListener("click", function(){
+    beep();
     var team = G.teams[G.equipe_courante];
     team.scores_manches[G.manche_courante-1]++;
     team.score_cumule++;
-    teamIndispo(); // s'assure de l'entrée
-    G.indisponibilites[G.manche_courante][-1] = G.indisponibilites[G.manche_courante][-1]||[]; // marker global
-    G.teams.forEach(function(t,i){ var m=G.indisponibilites[G.manche_courante]; if(!m[i]) m[i]=[]; m[i].push(G._current.id); });
-    G._deckPos++;
+    G._current.statut = "devine"; // indisponible pour toutes les équipes jusqu'à la fin de la manche
     showNextTheme();
   });
   var skipBtn = $("b-skip");
   if (skipBtn) skipBtn.addEventListener("click", function(){
-    teamIndispo().push(G._current.id);
+    beep();
+    G._current.statut = "saute"; // indisponible pour cette équipe sur ce tour seulement
     showNextTheme();
   });
-  var errBtn = $("b-error");
-  if (errBtn) errBtn.addEventListener("click", function(){
+  $("b-faute").addEventListener("click", function(){
     pauseTimer(); $("p-error").classList.add("on");
   });
 }
-$("b-err-yes").addEventListener("click", function(){
-  $("p-error").classList.remove("on");
-  var key = G.equipe_courante+"_"+G._current.id;
-  errCount[key] = (errCount[key]||0) + 1;
-  if (errCount[key] >= 2){ teamIndispo().push(G._current.id); } // 2 erreurs sur la même carte pour cette équipe -> carte écartée pour elle
-  endTurn("erreur");
-});
+$("b-err-yes").addEventListener("click", function(){ $("p-error").classList.remove("on"); endTurn(); });
 $("b-err-no").addEventListener("click", function(){ $("p-error").classList.remove("on"); resumeTimer(); });
 
-function endTurn(reason){
+function endTurn(){
   clearInterval(timerId);
-  if (reason==="erreur" || reason==="temps"){
-    // le thème en cours est proposé à l'équipe suivante (reste disponible, pas ajouté aux indispo)
-  }
-  save();
-  var doneAll = G.teams.every(function(t,i){
-    var m = G.indisponibilites[G.manche_courante][i]||[];
-    return G.cartes_en_jeu.every(function(c){ return m.indexOf(c.id)>-1; });
-  });
-  if (doneAll){ endManche(); return; }
-  G._lastTeam = G.equipe_courante;
-  var next = G.equipe_courante;
-  for (var i=0;i<G.teams.length;i++){
-    next = (next+1) % G.teams.length;
-    var m = G.indisponibilites[G.manche_courante][next]||[];
-    var hasCard = G.cartes_en_jeu.some(function(c){ return m.indexOf(c.id)===-1; });
-    if (hasCard) break;
-  }
-  G.equipe_courante = next;
+  beep();
+  var resteDesThemes = G.cartes_en_jeu.some(function(c){ return c.statut!=="devine"; });
+  if (!resteDesThemes){ endManche(); return; }
+  G.equipe_courante = (G.equipe_courante+1) % G.teams.length;
   setupTurn();
 }
 
@@ -396,10 +366,9 @@ function endManche(){
   var wrap = $("em-scores"); wrap.innerHTML="";
   G.teams.forEach(function(t){
     var d=document.createElement("div"); d.className="score-row";
-    d.innerHTML = "<span>Équipe "+t.numero+"</span><span>manche: "+t.scores_manches[G.manche_courante-1]+" · total: "+t.score_cumule+"</span>";
+    d.innerHTML = "<span>"+t.emoji+" "+t.nom+"</span><span>manche: "+t.scores_manches[G.manche_courante-1]+" · total: "+t.score_cumule+"</span>";
     wrap.appendChild(d);
   });
-  save();
   show("s-endmanche");
 }
 $("b-em-rules").addEventListener("click", function(){ window.open(RULES_URL,"_blank"); });
@@ -409,46 +378,26 @@ $("b-em-next").addEventListener("click", function(){
 });
 
 function endGame(){
-  G.statut = "terminee";
   var wrap = $("end-scores"); wrap.innerHTML="";
   G.teams.slice().sort(function(a,b){return b.score_cumule-a.score_cumule;}).forEach(function(t){
     var d=document.createElement("div"); d.className="score-row";
-    d.innerHTML = "<span>Équipe "+t.numero+"</span><span>"+t.score_cumule+" pts</span>";
+    d.innerHTML = "<span>"+t.emoji+" "+t.nom+"</span><span>"+t.score_cumule+" pts</span>";
     wrap.appendChild(d);
   });
+  $("end-themes-title").textContent = "Les "+G.cartes_en_jeu.length+" thèmes";
   var tw = $("end-themes"); tw.innerHTML="";
   G.cartes_en_jeu.forEach(function(c){
     var d=document.createElement("div"); d.className="card"; d.style.fontSize="14px"; d.textContent=c.txt;
     tw.appendChild(d);
   });
-  clearSaved();
   show("s-end");
 }
-$("b-end-new").addEventListener("click", function(){ show("s-home"); location.reload(); });
+$("b-end-new").addEventListener("click", function(){ show("s-home"); });
 
-// ---------- Quitter / reprendre ----------
+// ---------- Quitter ----------
 $("b-game-quit").addEventListener("click", function(){ pauseTimer(); $("p-quit").classList.add("on"); });
 $("b-quit-no").addEventListener("click", function(){ $("p-quit").classList.remove("on"); resumeTimer(); });
-$("b-quit-yes").addEventListener("click", function(){
-  $("p-quit").classList.remove("on");
-  G._pausedTimeLeft = timeLeft; save();
-  show("s-home"); location.reload();
-});
-
-function resumeGame(){
-  if (G._setup){ nextSetupPlayer(); return; }
-  if (G.statut==="terminee"){ show("s-home"); return; }
-  G.equipe_courante = G.equipe_courante||0;
-  $("g-manche").textContent = "Manche "+G.manche_courante;
-  $("g-team").textContent = "Équipe "+(G.equipe_courante+1);
-  timeLeft = G._pausedTimeLeft || G.duree_decompte;
-  G._deck = shuffle(G.cartes_en_jeu.slice());
-  G._deckPos = 0;
-  renderActions();
-  showNextTheme();
-  runTimer();
-  show("s-game");
-}
+$("b-quit-yes").addEventListener("click", function(){ $("p-quit").classList.remove("on"); show("s-home"); });
 
 show("s-home");
 })();
